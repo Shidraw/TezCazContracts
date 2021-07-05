@@ -95,21 +95,12 @@
         skip
     } with (self);
 
-    function cashOut (var self : storage) : (list(operation) * storage) is
-    block {
-        const player : address = Tezos.sender;
-        const res_amount : tez = (case self.winnings[player] of | None -> 0tez | Some(x) -> x end);
-        assert((res_amount > 0tez));
-        assert((res_amount <= Tezos.balance));
-        self.winnings[player] := 0tez;
-        const op0 : operation = transaction((unit), res_amount, (get_contract(player) : contract(unit)));
-    } with (list [op0], self);
-
-
     function startRoulette(var self : storage; const result : nat) : (list(operation) * storage) is
     block {
         ligoAssert(Tezos.sender = self.gameCreator, "Tezos.sender = self.gameCreator");
         ligoAssert((size(self.bets) > 0n), "size(self.bets) > 0n");
+        var ops : list(operation) := nil;
+        var _final_ops : list(operation) := nil;
         for i := 0 to int (size(self.bets)) block {
         var won : bool := False;
         const b : roulette_Bet = (case self.bets[abs(i)] of | None -> roulette_Bet_0 | Some(x) -> x end);
@@ -121,33 +112,37 @@
             } else block {
             if (b.betType = 0n) then block {
                 if (b.number = 0n) then block {
-                won := ((result mod 2n) = 0n);
-                } else block {
-                skip
-                };
-                if (b.number = 1n) then block {
-                won := ((result mod 2n) = 1n);
-                } else block {
-                skip
-                };
+                    // Couleur Rouge : 2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35    
+                    if ((result = 1n) or (result = 3n) or (result = 5n) or (result = 7n) or (result = 9n) or (result = 12n) or (result = 14n) or (result = 16n) or (result = 18n) or (result = 19n) or (result = 21n) or (result = 23n) or (result = 25n) or (result = 27n) or (result = 30n) or (result = 32n) or (result = 34n) or (result = 36n)) then block {
+                            won := True;
+                        } else block {
+                            won := False;
+                        };
+                    } else block {
+                        // Couleur Noire : 1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36
+                        if ((result = 2n) or (result = 4n) or (result = 6n) or (result = 8n) or (result = 10n) or (result = 11n) or (result = 13n) or (result = 15n) or (result = 17n) or (result = 20n) or (result = 22n) or (result = 24n) or (result = 26n) or (result = 28n) or (result = 29n) or (result = 31n) or (result = 33n) or (result = 35n)) then block {
+                        won := True;
+                    } else block {
+                        won := False;
+                    };
+                    };
             } else block {
                 skip
             };
             };
             }; 
         if (won) then block {
-            self.winnings[b.player] := ((case self.winnings[b.player] of | None -> 0tez | Some(x) -> x end) + (self.betAmount * (case self.payouts[b.betType] of | None -> 0n | Some(x) -> x end)));
+            const op0 : operation = transaction((unit), ((case self.winnings[b.player] of | None -> 0tez | Some(x) -> x end) + (self.betAmount * (case self.payouts[b.betType] of | None -> 0n | Some(x) -> x end))), (get_contract(b.player) : contract(unit)));
+            _final_ops := op0 # ops;
+            ops := _final_ops; 
         } else block {
             skip
         };
         };
         self.bets := (Map.empty : map(nat, roulette_Bet));
         self.requiredBalance := 0tez;
-
-        const tmp_1 : (list(operation) * storage) = cashOut(self);
-        var listOp : list(operation) := tmp_1.0;
-        var store : storage := tmp_1.1;
-    } with (listOp, store);
+        
+    } with (ops, self);
 
     function main (const action : entryAction; const self : storage) : (list(operation) * storage) is
     block {
