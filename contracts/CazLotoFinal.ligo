@@ -64,6 +64,7 @@ function fund(const self : storage) : (storage) is block {
 
 function startLoto(var self : storage; const result : nat) : (list(operation) * storage) is
   block {
+    ligoAssert(not(self.bannedUsers contains Tezos.sender), "User is banned from the game");
     ligoAssert(Tezos.sender = self.gameCreator, "Tezos.sender = self.gameCreator");
     ligoAssert((Set.size(self.players) > 0n), "size(self.players) > 0n");
     var winners : set (address) := set [];
